@@ -1,37 +1,80 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Modal,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useVoice } from '../contexts/VoiceContext';
+import { aadhaarService } from '../services/aadhaarService';
+
+interface AppointmentSlot {
+  id: string;
+  date: string;
+  time: string;
+  available: boolean;
+}
+
+interface AppointmentCenter {
+  id: string;
+  name: string;
+  address: string;
+  distance: string;
+  slots: AppointmentSlot[];
+}
 
 const AadhaarAppointmentScreen = () => {
   const navigation = useNavigation();
   const { startListening, stopListening, isListening, transcript, speak } = useVoice();
   
-  const [selectedService, setSelectedService] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
-  const [aadhaarNumber, setAadhaarNumber] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [selectedCenter, setSelectedCenter] = useState<AppointmentCenter | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
+  const [showCenterModal, setShowCenterModal] = useState(false);
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [appointmentData, setAppointmentData] = useState({
+    purpose: 'biometric_update',
+    documents: [] as string[],
+    remarks: '',
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const services = [
-    { id: 'biometric', name: 'Biometric Update', description: 'Update fingerprints and iris scan' },
-    { id: 'photo', name: 'Photo Update', description: 'Update your Aadhaar photo' },
-    { id: 'address', name: 'Address Update', description: 'Update your address details' },
-    { id: 'mobile', name: 'Mobile Update', description: 'Update mobile number' },
+  // Mock data for centers
+  const centers: AppointmentCenter[] = [
+    {
+      id: '1',
+      name: 'Aadhaar Seva Kendra - Central Mall',
+      address: 'Central Mall, MG Road, Bangalore',
+      distance: '2.5 km',
+      slots: [
+        { id: '1', date: '2024-01-15', time: '09:00 AM', available: true },
+        { id: '2', date: '2024-01-15', time: '10:00 AM', available: true },
+        { id: '3', date: '2024-01-15', time: '11:00 AM', available: false },
+        { id: '4', date: '2024-01-16', time: '09:00 AM', available: true },
+        { id: '5', date: '2024-01-16', time: '10:00 AM', available: true },
+      ],
+    },
+    {
+      id: '2',
+      name: 'Aadhaar Seva Kendra - City Center',
+      address: 'City Center, Brigade Road, Bangalore',
+      distance: '4.1 km',
+      slots: [
+        { id: '6', date: '2024-01-15', time: '02:00 PM', available: true },
+        { id: '7', date: '2024-01-15', time: '03:00 PM', available: true },
+        { id: '8', date: '2024-01-16', time: '02:00 PM', available: true },
+        { id: '9', date: '2024-01-16', time: '03:00 PM', available: true },
+      ],
+    },
   ];
 
-  const availableDates = [
-    { date: '2024-01-15', day: 'Monday', available: true },
-    { date: '2024-01-16', day: 'Tuesday', available: true },
-    { date: '2024-01-17', day: 'Wednesday', available: false },
-    { date: '2024-01-18', day: 'Thursday', available: true },
-    { date: '2024-01-19', day: 'Friday', available: true },
-  ];
-
-  const availableTimes = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM',
-  ];
+  useEffect(() => {
+    speak('Welcome to Aadhaar Appointment Booking. Please select a center and time slot.');
+  }, []);
 
   const handleVoiceCommand = async () => {
     if (isListening) {
@@ -39,59 +82,58 @@ const AadhaarAppointmentScreen = () => {
       await processVoiceCommand(transcript);
     } else {
       startListening();
-      await speak('Listening for appointment commands');
+      await speak('Listening... Please say your command');
     }
   };
 
   const processVoiceCommand = async (command: string) => {
     const lowerCommand = command.toLowerCase();
     
-    if (lowerCommand.includes('biometric')) {
-      setSelectedService('biometric');
-      await speak('Selected biometric update service');
-    } else if (lowerCommand.includes('photo')) {
-      setSelectedService('photo');
-      await speak('Selected photo update service');
-    } else if (lowerCommand.includes('address')) {
-      setSelectedService('address');
-      await speak('Selected address update service');
-    } else if (lowerCommand.includes('mobile')) {
-      setSelectedService('mobile');
-      await speak('Selected mobile update service');
-    } else if (lowerCommand.includes('date')) {
-      const dateMatch = command.match(/\d{1,2}\/\d{1,2}\/\d{4}/);
-      if (dateMatch) {
-        setSelectedDate(dateMatch[0]);
-        await speak(`Date set to ${dateMatch[0]}`);
-      }
-    } else if (lowerCommand.includes('time')) {
-      const timeMatch = command.match(/\d{1,2}:\d{2}\s?(AM|PM)/i);
-      if (timeMatch) {
-        setSelectedTime(timeMatch[0]);
-        await speak(`Time set to ${timeMatch[0]}`);
-      }
-    } else if (lowerCommand.includes('aadhaar')) {
-      const aadhaarMatch = command.match(/\d{4}\s\d{4}\s\d{4}/);
-      if (aadhaarMatch) {
-        setAadhaarNumber(aadhaarMatch[0].replace(/\s/g, ''));
-        await speak(`Aadhaar number set to ${aadhaarMatch[0]}`);
+    if (lowerCommand.includes('select center') || lowerCommand.includes('choose center')) {
+      setShowCenterModal(true);
+      await speak('Opening center selection');
+    } else if (lowerCommand.includes('select slot') || lowerCommand.includes('choose time')) {
+      if (selectedCenter) {
+        setShowSlotModal(true);
+        await speak('Opening time slot selection');
+      } else {
+        await speak('Please select a center first');
       }
     } else if (lowerCommand.includes('book') || lowerCommand.includes('confirm')) {
-      handleBookAppointment();
+      if (selectedCenter && selectedSlot) {
+        await handleBookAppointment();
+      } else {
+        await speak('Please select both center and time slot first');
+      }
+    } else if (lowerCommand.includes('back') || lowerCommand.includes('home')) {
+      navigation.goBack();
     }
   };
 
   const handleBookAppointment = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !aadhaarNumber) {
-      Alert.alert('Error', 'Please fill all required fields');
+    if (!selectedCenter || !selectedSlot) {
+      Alert.alert('Error', 'Please select both center and time slot');
       return;
     }
 
+    setIsLoading(true);
     try {
       await speak('Booking your appointment');
+      
+      const appointment = await aadhaarService.bookAppointment({
+        centerId: selectedCenter.id,
+        slotId: selectedSlot.id,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+        purpose: appointmentData.purpose,
+        documents: appointmentData.documents,
+        remarks: appointmentData.remarks,
+      });
+
+      await speak('Appointment booked successfully');
       Alert.alert(
-        'Appointment Booked',
-        `Service: ${selectedService}\nDate: ${selectedDate}\nTime: ${selectedTime}\nAadhaar: ${aadhaarNumber}`,
+        'Success',
+        `Appointment booked for ${selectedSlot.date} at ${selectedSlot.time}`,
         [
           {
             text: 'OK',
@@ -100,106 +142,133 @@ const AadhaarAppointmentScreen = () => {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to book appointment');
+      await speak('Failed to book appointment');
+      Alert.alert('Error', 'Failed to book appointment. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const renderCenterItem = (center: AppointmentCenter) => (
+    <TouchableOpacity
+      key={center.id}
+      style={styles.centerItem}
+      onPress={() => {
+        setSelectedCenter(center);
+        setShowCenterModal(false);
+        speak(`Selected ${center.name}`);
+      }}
+    >
+      <Text style={styles.centerName}>{center.name}</Text>
+      <Text style={styles.centerAddress}>{center.address}</Text>
+      <Text style={styles.centerDistance}>{center.distance}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderSlotItem = (slot: AppointmentSlot) => (
+    <TouchableOpacity
+      key={slot.id}
+      style={[styles.slotItem, !slot.available && styles.unavailableSlot]}
+      onPress={() => {
+        if (slot.available) {
+          setSelectedSlot(slot);
+          setShowSlotModal(false);
+          speak(`Selected ${slot.time} on ${slot.date}`);
+        }
+      }}
+      disabled={!slot.available}
+    >
+      <Text style={[styles.slotTime, !slot.available && styles.unavailableText]}>
+        {slot.time}
+      </Text>
+      <Text style={[styles.slotDate, !slot.available && styles.unavailableText]}>
+        {slot.date}
+      </Text>
+      {!slot.available && (
+        <Text style={styles.unavailableLabel}>Unavailable</Text>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Aadhaar Appointment</Text>
+      <Text style={styles.title}>Aadhaar Appointment Booking</Text>
       
       <ScrollView style={styles.content}>
-        <Text style={styles.sectionTitle}>Select Service</Text>
-        <View style={styles.servicesContainer}>
-          {services.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              style={[
-                styles.serviceCard,
-                selectedService === service.id && styles.selectedServiceCard,
-              ]}
-              onPress={() => setSelectedService(service.id)}
-            >
-              <Text style={styles.serviceName}>{service.name}</Text>
-              <Text style={styles.serviceDescription}>{service.description}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Center</Text>
+          <TouchableOpacity
+            style={styles.selectionButton}
+            onPress={() => setShowCenterModal(true)}
+          >
+            <Text style={styles.selectionButtonText}>
+              {selectedCenter ? selectedCenter.name : 'Choose Center'}
+            </Text>
+            <Text style={styles.selectionArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
-        {selectedService && (
-          <>
-            <Text style={styles.sectionTitle}>Enter Details</Text>
-            <View style={styles.formSection}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Aadhaar Number</Text>
-                <TextInput
-                  style={styles.input}
-                  value={aadhaarNumber}
-                  onChangeText={setAadhaarNumber}
-                  placeholder="XXXX XXXX XXXX"
-                  keyboardType="numeric"
-                  maxLength={12}
-                />
-              </View>
+        {selectedCenter && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Select Time Slot</Text>
+            <TouchableOpacity
+              style={styles.selectionButton}
+              onPress={() => setShowSlotModal(true)}
+            >
+              <Text style={styles.selectionButtonText}>
+                {selectedSlot ? `${selectedSlot.time} on ${selectedSlot.date}` : 'Choose Time Slot'}
+              </Text>
+              <Text style={styles.selectionArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Phone Number</Text>
-                <TextInput
-                  style={styles.input}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  placeholder="Enter phone number"
-                  keyboardType="phone-pad"
-                />
-              </View>
-            </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Appointment Details</Text>
+          
+          <Text style={styles.label}>Purpose</Text>
+          <Text style={styles.value}>Biometric Update</Text>
+          
+          <Text style={styles.label}>Required Documents</Text>
+          <Text style={styles.value}>
+            • Aadhaar Card{'\n'}
+            • Proof of Address{'\n'}
+            • Recent Passport Size Photo
+          </Text>
+          
+          <Text style={styles.label}>Remarks (Optional)</Text>
+          <TextInput
+            style={styles.remarksInput}
+            placeholder="Any special requirements..."
+            value={appointmentData.remarks}
+            onChangeText={(text) => setAppointmentData({...appointmentData, remarks: text})}
+            multiline
+          />
+        </View>
 
-            <Text style={styles.sectionTitle}>Select Date</Text>
-            <View style={styles.datesContainer}>
-              {availableDates.map((date) => (
-                <TouchableOpacity
-                  key={date.date}
-                  style={[
-                    styles.dateCard,
-                    selectedDate === date.date && styles.selectedDateCard,
-                    !date.available && styles.unavailableDateCard,
-                  ]}
-                  onPress={() => date.available && setSelectedDate(date.date)}
-                  disabled={!date.available}
-                >
-                  <Text style={styles.dateDay}>{date.day}</Text>
-                  <Text style={styles.dateDate}>{date.date}</Text>
-                  {!date.available && <Text style={styles.unavailableText}>Full</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {selectedDate && (
-              <>
-                <Text style={styles.sectionTitle}>Select Time</Text>
-                <View style={styles.timesContainer}>
-                  {availableTimes.map((time) => (
-                    <TouchableOpacity
-                      key={time}
-                      style={[
-                        styles.timeCard,
-                        selectedTime === time && styles.selectedTimeCard,
-                      ]}
-                      onPress={() => setSelectedTime(time)}
-                    >
-                      <Text style={styles.timeText}>{time}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <TouchableOpacity style={styles.bookButton} onPress={handleBookAppointment}>
-                  <Text style={styles.bookButtonText}>Book Appointment</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </>
+        {selectedCenter && selectedSlot && (
+          <View style={styles.summarySection}>
+            <Text style={styles.summaryTitle}>Appointment Summary</Text>
+            <Text style={styles.summaryText}>Center: {selectedCenter.name}</Text>
+            <Text style={styles.summaryText}>Date: {selectedSlot.date}</Text>
+            <Text style={styles.summaryText}>Time: {selectedSlot.time}</Text>
+            <Text style={styles.summaryText}>Purpose: Biometric Update</Text>
+          </View>
         )}
       </ScrollView>
+
+      <TouchableOpacity
+        style={[
+          styles.bookButton,
+          (!selectedCenter || !selectedSlot || isLoading) && styles.disabledButton
+        ]}
+        onPress={handleBookAppointment}
+        disabled={!selectedCenter || !selectedSlot || isLoading}
+      >
+        <Text style={styles.bookButtonText}>
+          {isLoading ? 'Booking...' : 'Book Appointment'}
+        </Text>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.voiceButton, isListening && styles.listeningButton]}
@@ -209,6 +278,52 @@ const AadhaarAppointmentScreen = () => {
           {isListening ? 'Listening...' : 'Tap to Speak'}
         </Text>
       </TouchableOpacity>
+
+      {/* Center Selection Modal */}
+      <Modal
+        visible={showCenterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCenterModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Center</Text>
+            <ScrollView>
+              {centers.map(renderCenterItem)}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowCenterModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Slot Selection Modal */}
+      <Modal
+        visible={showSlotModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSlotModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Time Slot</Text>
+            <ScrollView>
+              {selectedCenter?.slots.map(renderSlotItem)}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowSlotModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -217,143 +332,100 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    padding: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1F2937',
-    marginBottom: 20,
+    textAlign: 'center',
+    padding: 20,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   content: {
     flex: 1,
-    marginBottom: 20,
+    padding: 20,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 15,
-    marginTop: 20,
-  },
-  servicesContainer: {
-    marginBottom: 20,
-  },
-  serviceCard: {
+  section: {
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  selectedServiceCard: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  serviceName: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 5,
+    marginBottom: 10,
   },
-  serviceDescription: {
-    fontSize: 14,
+  selectionButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 15,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  selectionButtonText: {
+    fontSize: 16,
+    color: '#1F2937',
+    flex: 1,
+  },
+  selectionArrow: {
+    fontSize: 18,
     color: '#6B7280',
   },
-  formSection: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    marginBottom: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 5,
   },
-  input: {
-    height: 50,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  value: {
+    fontSize: 16,
+    color: '#1F2937',
+    marginBottom: 15,
+  },
+  remarksInput: {
+    height: 80,
+    backgroundColor: '#F3F4F6',
     borderRadius: 8,
     paddingHorizontal: 15,
     fontSize: 16,
+    textAlignVertical: 'top',
   },
-  datesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  dateCard: {
-    backgroundColor: 'white',
+  summarySection: {
+    backgroundColor: '#EFF6FF',
     borderRadius: 10,
     padding: 15,
-    width: '48%',
-    alignItems: 'center',
+    marginBottom: 15,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E40AF',
     marginBottom: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
   },
-  selectedDateCard: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  unavailableDateCard: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#D1D5DB',
-  },
-  dateDay: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  dateDate: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  unavailableText: {
-    fontSize: 12,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  timesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  timeCard: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 12,
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  selectedTimeCard: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  timeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
+  summaryText: {
+    fontSize: 16,
+    color: '#1E40AF',
+    marginBottom: 5,
   },
   bookButton: {
     backgroundColor: '#10B981',
     paddingVertical: 15,
-    borderRadius: 8,
+    borderRadius: 10,
+    margin: 20,
     alignItems: 'center',
-    marginTop: 10,
+  },
+  disabledButton: {
+    backgroundColor: '#9CA3AF',
   },
   bookButtonText: {
     color: 'white',
@@ -362,16 +434,100 @@ const styles = StyleSheet.create({
   },
   voiceButton: {
     backgroundColor: '#1F2937',
-    paddingVertical: 20,
+    paddingVertical: 15,
     borderRadius: 50,
     alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
   listeningButton: {
     backgroundColor: '#10B981',
   },
   voiceButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  centerItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+  },
+  centerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 5,
+  },
+  centerAddress: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 5,
+  },
+  centerDistance: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  slotItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  unavailableSlot: {
+    backgroundColor: '#F3F4F6',
+    opacity: 0.6,
+  },
+  slotTime: {
     fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  slotDate: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginTop: 5,
+  },
+  unavailableText: {
+    color: '#9CA3AF',
+  },
+  unavailableLabel: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  cancelButtonText: {
+    color: '#4B5563',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

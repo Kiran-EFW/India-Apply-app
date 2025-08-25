@@ -89,6 +89,16 @@ const ProfileScreen = () => {
           <Text style={styles.settingText}>Privacy & Security</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Help')}>
+          <Text style={styles.settingText}>Help & Support</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('BiometricAuth')}>
+          <Text style={styles.settingText}>Biometric Authentication</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
       </View>
       
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
