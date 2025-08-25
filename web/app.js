@@ -4,27 +4,667 @@ const API_BASE_URL = 'http://localhost:3000/api';
 let currentUser = null;
 let authToken = null;
 
+// Language and UI variables
+let selectedLanguage = 'hi-IN'; // Default to Hindi
+let currentTranslations = {};
+let currentServiceType = '';
+let currentQuestionIndex = 0;
+let totalQuestions = 0;
+let userAnswers = {};
+let isVoiceAssistantActive = false;
+let recognition = null;
+let synthesis = window.speechSynthesis;
+
+// Supported Indian Languages
+const supportedLanguages = {
+    'hi-IN': {
+        name: 'हिंदी (Hindi)',
+        code: 'hi-IN',
+        nativeName: 'हिंदी',
+        region: 'National'
+    },
+    'en-IN': {
+        name: 'English (India)',
+        code: 'en-IN',
+        nativeName: 'English',
+        region: 'National'
+    },
+    'bn-IN': {
+        name: 'বাংলা (Bengali)',
+        code: 'bn-IN',
+        nativeName: 'বাংলা',
+        region: 'West Bengal, Tripura'
+    },
+    'ta-IN': {
+        name: 'தமிழ் (Tamil)',
+        code: 'ta-IN',
+        nativeName: 'தமிழ்',
+        region: 'Tamil Nadu, Puducherry'
+    },
+    'te-IN': {
+        name: 'తెలుగు (Telugu)',
+        code: 'te-IN',
+        nativeName: 'తెలుగు',
+        region: 'Andhra Pradesh, Telangana'
+    },
+    'mr-IN': {
+        name: 'मराठी (Marathi)',
+        code: 'mr-IN',
+        nativeName: 'मराठी',
+        region: 'Maharashtra'
+    },
+    'gu-IN': {
+        name: 'ગુજરાતી (Gujarati)',
+        code: 'gu-IN',
+        nativeName: 'ગુજરાતી',
+        region: 'Gujarat'
+    },
+    'kn-IN': {
+        name: 'ಕನ್ನಡ (Kannada)',
+        code: 'kn-IN',
+        nativeName: 'ಕನ್ನಡ',
+        region: 'Karnataka'
+    },
+    'ml-IN': {
+        name: 'മലയാളം (Malayalam)',
+        code: 'ml-IN',
+        nativeName: 'മലയാളം',
+        region: 'Kerala'
+    },
+    'pa-IN': {
+        name: 'ਪੰਜਾਬੀ (Punjabi)',
+        code: 'pa-IN',
+        nativeName: 'ਪੰਜਾਬੀ',
+        region: 'Punjab'
+    },
+    'or-IN': {
+        name: 'ଓଡ଼ିଆ (Odia)',
+        code: 'or-IN',
+        nativeName: 'ଓଡ଼ିଆ',
+        region: 'Odisha'
+    },
+    'as-IN': {
+        name: 'অসমীয়া (Assamese)',
+        code: 'as-IN',
+        nativeName: 'অসমীয়া',
+        region: 'Assam'
+    }
+};
+
+// Translation objects for common UI elements
+const translations = {
+    'hi-IN': {
+        appTitle: 'Apply AI India - सरकारी सेवाएं',
+        selectLanguage: 'भाषा चुनें',
+        login: 'लॉगिन',
+        register: 'पंजीकरण',
+        email: 'ईमेल',
+        password: 'पासवर्ड',
+        fullName: 'पूरा नाम',
+        phoneNumber: 'मोबाइल नंबर',
+        next: 'अगला',
+        previous: 'पिछला',
+        submit: 'जमा करें',
+        skip: 'छोड़ें',
+        cancel: 'रद्द करें',
+        voiceHelper: 'आवाज़ सहायक',
+        listen: 'सुनें',
+        pleaseAnswer: 'कृपया इस प्रश्न का उत्तर दें',
+        services: {
+            passport: 'पासपोर्ट आवेदन',
+            pan: 'पैन कार्ड आवेदन',
+            aadhaar: 'आधार सेवाएं',
+            itr: 'आयकर रिटर्न'
+        }
+    },
+    'en-IN': {
+        appTitle: 'Apply AI India - Government Services',
+        selectLanguage: 'Select Language',
+        login: 'Login',
+        register: 'Register',
+        email: 'Email',
+        password: 'Password',
+        fullName: 'Full Name',
+        phoneNumber: 'Phone Number',
+        next: 'Next',
+        previous: 'Previous',
+        submit: 'Submit',
+        skip: 'Skip',
+        cancel: 'Cancel',
+        voiceHelper: 'Voice Helper',
+        listen: 'Listen',
+        pleaseAnswer: 'Please answer this question',
+        services: {
+            passport: 'Passport Application',
+            pan: 'PAN Card Application',
+            aadhaar: 'Aadhaar Services',
+            itr: 'Income Tax Return'
+        }
+    },
+    'bn-IN': {
+        appTitle: 'Apply AI India - সরকারি সেবা',
+        selectLanguage: 'ভাষা নির্বাচন করুন',
+        login: 'লগইন',
+        register: 'নিবন্ধন',
+        email: 'ইমেইল',
+        password: 'পাসওয়ার্ড',
+        fullName: 'পূর্ণ নাম',
+        phoneNumber: 'ফোন নম্বর',
+        next: 'পরবর্তী',
+        previous: 'পূর্ববর্তী',
+        submit: 'জমা দিন',
+        skip: 'এড়িয়ে যান',
+        cancel: 'বাতিল',
+        voiceHelper: 'ভয়েস সহায়ক',
+        listen: 'শুনুন',
+        pleaseAnswer: 'দয়া করে এই প্রশ্নের উত্তর দিন',
+        services: {
+            passport: 'পাসপোর্ট আবেদন',
+            pan: 'প্যান কার্ড আবেদন',
+            aadhaar: 'আধার সেবা',
+            itr: 'আয়কর রিটার্ন'
+        }
+    },
+    'ta-IN': {
+        appTitle: 'Apply AI India - அரசு சேவைகள்',
+        selectLanguage: 'மொழியைத் தேர்ந்தெடுக்கவும்',
+        login: 'உள்நுழைய',
+        register: 'பதிவு',
+        email: 'மின்னஞ்சல்',
+        password: 'கடவுச்சொல்',
+        fullName: 'முழு பெயர்',
+        phoneNumber: 'தொலைபேசி எண்',
+        next: 'அடுத்து',
+        previous: 'முந்தைய',
+        submit: 'சமர்ப்பிக்கவும்',
+        skip: 'தவிர்க்கவும்',
+        cancel: 'ரத்து செய்யவும்',
+        voiceHelper: 'குரல் உதவியாளர்',
+        listen: 'கேளுங்கள்',
+        pleaseAnswer: 'தயவுசெய்து இந்த கேள்விக்கு பதிலளிக்கவும்',
+        services: {
+            passport: 'பாஸ்போர்ட் விண்ணப்பம்',
+            pan: 'பான் கார்டு விண்ணப்பம்',
+            aadhaar: 'ஆதார் சேவைகள்',
+            itr: 'வருமான வரி வருமானம்'
+        }
+    }
+};
+
+// Language selection functions
+function showLanguageSelector() {
+    // Hide all other sections
+    const sectionsToHide = ['authContainer', 'servicesContainer', 'applicationForm', 'servicesSection'];
+    sectionsToHide.forEach(sectionId => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+    
+    // Show language selector
+    document.getElementById('languageSelector').style.display = 'block';
+    
+    console.log('Language selector shown');
+}
+
+function selectLanguage(langCode) {
+    selectedLanguage = langCode;
+    currentTranslations = translations[langCode] || translations['hi-IN'];
+    
+    console.log('Language selected:', supportedLanguages[langCode].name);
+    
+    // Update UI elements
+    updateUILanguage();
+    
+    // Hide language selector and show services
+    document.getElementById('languageSelector').style.display = 'none';
+    showServices();
+    
+    // Update speech synthesis and recognition language
+    if (synthesis) {
+        synthesis.cancel(); // Cancel any ongoing speech
+    }
+    
+    // Update speech recognition language
+    if (recognition) {
+        recognition.lang = selectedLanguage;
+    }
+    
+    // Show a welcome message in the selected language
+    if (currentTranslations) {
+        let welcomeMsg;
+        switch(selectedLanguage) {
+            case 'en-IN':
+                welcomeMsg = 'Welcome! Please select a service to continue.';
+                break;
+            case 'hi-IN':
+                welcomeMsg = 'स्वागत है! कृपया जारी रखने के लिए एक सेवा चुनें।';
+                break;
+            case 'ta-IN':
+                welcomeMsg = 'வரவேற்கிறோம்! தொடர ஒரு சேவையைத் தேர்ந்தெடுக்கவும்।';
+                break;
+            case 'te-IN':
+                welcomeMsg = 'స్వాగతం! కొనసాగించడానికి దయచేసి ఒక సేవను ఎంచుకోండి।';
+                break;
+            case 'bn-IN':
+                welcomeMsg = 'স্বাগতম! অব্যাহত রাখতে একটি সেবা নির্বাচন করুন।';
+                break;
+            case 'mr-IN':
+                welcomeMsg = 'स्वागत! सुरू ठेवण्यासाठी कृपया एक सेवा निवडा।';
+                break;
+            case 'gu-IN':
+                welcomeMsg = 'આપનું સ્વાગત છે! ચાલુ રાખવા માટે કૃપા કરીને એક સેવા પસંદ કરો।';
+                break;
+            case 'kn-IN':
+                welcomeMsg = 'ಸ್ವಾಗತ! ಮುಂದುವರಿಸಲು ದಯವಿಟ್ಟು ಒಂದು ಸೇವೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ।';
+                break;
+            case 'ml-IN':
+                welcomeMsg = 'സ്വാഗതം! തുടരാൻ ദയവായി ഒരു സേവനം തിരഞ്ഞെടുക്കുക।';
+                break;
+            case 'pa-IN':
+                welcomeMsg = 'ਜੀ ਆਇਆਂ ਨੂੰ! ਜਾਰੀ ਰੱਖਣ ਲਈ ਕਿਰਪਾ ਕਰਕੇ ਇੱਕ ਸੇਵਾ ਚੁਣੋ।';
+                break;
+            case 'or-IN':
+                welcomeMsg = 'ସ୍ୱାଗତ! ଜାରି ରଖିବା ପାଇଁ ଦୟାକରି ଏକ ସେବା ବାଛନ୍ତୁ।';
+                break;
+            default:
+                welcomeMsg = 'स्वागत है! कृपया जारी रखने के लिए एक सेवा चुनें।';
+        }
+        speakText(welcomeMsg);
+    }
+}
+
+function updateUILanguage() {
+    const t = currentTranslations;
+    
+    // Update common UI elements
+    const elements = {
+        'appTitle': t.appTitle,
+        'loginBtn': t.login,
+        'registerBtn': t.register,
+        'voiceText': t.voiceHelper
+    };
+    
+    Object.keys(elements).forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = elements[id];
+        }
+    });
+    
+    // Update hero section
+    updateHeroSection();
+    
+    // Update service cards
+    updateServiceCards();
+    
+    // Update form labels and placeholders
+    updateFormElements();
+    
+    // Update button texts
+    updateButtonTexts();
+}
+
+function updateHeroSection() {
+    const t = currentTranslations;
+    
+    // Update hero section content based on language
+    const heroContent = {
+        'hi-IN': {
+            title: 'सरकारी सेवाएं सरल बनाईं',
+            subtitle: 'AI सहायता के साथ सरकारी सेवाओं के लिए आवेदन करें। तेज़, सुरक्षित और उपयोगकर्ता-अनुकूल।',
+            button: '<i class="fas fa-rocket"></i> शुरू करें'
+        },
+        'en-IN': {
+            title: 'Government Services Made Simple',
+            subtitle: 'Apply for government services with AI assistance. Fast, secure, and user-friendly.',
+            button: '<i class="fas fa-rocket"></i> Get Started'
+        },
+        'bn-IN': {
+            title: 'সরকারি সেবা সহজ করা হয়েছে',
+            subtitle: 'AI সহায়তায় সরকারি সেবার জন্য আবেদন করুন। দ্রুত, নিরাপদ এবং ব্যবহারকারী-বান্ধব।',
+            button: '<i class="fas fa-rocket"></i> শুরু করুন'
+        },
+        'ta-IN': {
+            title: 'அரசு சேவைகள் எளிதாக்கப்பட்டன',
+            subtitle: 'AI உதவியுடன் அரசு சேவைகளுக்கு விண்ணப்பிக்கவும். வேகமான, பாதுகாப்பான மற்றும் பயனர் நட்பு.',
+            button: '<i class="fas fa-rocket"></i> தொடங்கவும்'
+        }
+    };
+    
+    const content = heroContent[selectedLanguage] || heroContent['hi-IN'];
+    
+    // Update hero section elements
+    const heroTitle = document.querySelector('.hero-section h1');
+    const heroSubtitle = document.querySelector('.hero-section p');
+    const heroButton = document.querySelector('.hero-section button');
+    
+    if (heroTitle) heroTitle.textContent = content.title;
+    if (heroSubtitle) heroSubtitle.textContent = content.subtitle;
+    if (heroButton) heroButton.innerHTML = content.button;
+}
+
+function updateServiceCards() {
+    const t = currentTranslations;
+    
+    // Define service content for each language
+    const serviceContent = {
+        'hi-IN': {
+            passport: {
+                title: 'पासपोर्ट सेवाएं',
+                description: 'नया पासपोर्ट, नवीनीकरण या पता बदलने के लिए आवेदन करें',
+                button: 'अभी आवेदन करें',
+                info: 'अधिक जानकारी'
+            },
+            aadhaar: {
+                title: 'आधार सेवाएं',
+                description: 'आधार विवरण अपडेट करें, ई-आधार डाउनलोड करें या स्थिति देखें',
+                button: 'अभी आवेदन करें',
+                info: 'अधिक जानकारी'
+            },
+            pan: {
+                title: 'पैन कार्ड सेवाएं',
+                description: 'नया पैन कार्ड आवेदन, सुधार या डुप्लिकेट के लिए आवेदन करें',
+                button: 'अभी आवेदन करें',
+                info: 'अधिक जानकारी'
+            },
+            'driving-license': {
+                title: 'ड्राइविंग लाइसेंस',
+                description: 'ड्राइविंग लाइसेंस आवेदन, नवीनीकरण या डुप्लिकेट के लिए आवेदन करें',
+                button: 'अभी आवेदन करें',
+                info: 'अधिक जानकारी'
+            },
+            itr: {
+                title: 'आयकर रिटर्न',
+                description: 'आयकर रिटर्न भरें, टैक्स गणना करें और रिफंड की जांच करें',
+                button: 'अभी आवेदन करें',
+                info: 'अधिक जानकारी'
+            },
+            scanner: {
+                title: 'दस्तावेज़ स्कैनर',
+                description: 'दस्तावेज़ स्कैन करें और फॉर्म भरने के लिए जानकारी निकालें',
+                button: 'स्कैन करें',
+                info: 'अधिक जानकारी'
+            }
+        },
+        'en-IN': {
+            passport: {
+                title: 'Passport Services',
+                description: 'Apply for new passport, renewal, or address change',
+                button: 'Apply Now',
+                info: 'More Info'
+            },
+            aadhaar: {
+                title: 'Aadhaar Services',
+                description: 'Update Aadhaar details, download e-Aadhaar, or check status',
+                button: 'Apply Now',
+                info: 'More Info'
+            },
+            pan: {
+                title: 'PAN Card Services',
+                description: 'Apply for new PAN card, correction, or duplicate',
+                button: 'Apply Now',
+                info: 'More Info'
+            },
+            'driving-license': {
+                title: 'Driving License',
+                description: 'Apply for driving license, renewal, or duplicate',
+                button: 'Apply Now',
+                info: 'More Info'
+            },
+            itr: {
+                title: 'ITR Filing',
+                description: 'File income tax return, calculate tax, and check refund',
+                button: 'Apply Now',
+                info: 'More Info'
+            },
+            scanner: {
+                title: 'Document Scanner',
+                description: 'Scan documents and extract information for form filling',
+                button: 'Scan Now',
+                info: 'More Info'
+            }
+        },
+        'bn-IN': {
+            passport: {
+                title: 'পাসপোর্ট সেবা',
+                description: 'নতুন পাসপোর্ট, নবায়ন বা ঠিকানা পরিবর্তনের জন্য আবেদন করুন',
+                button: 'এখনই আবেদন করুন',
+                info: 'আরও তথ্য'
+            },
+            aadhaar: {
+                title: 'আধার সেবা',
+                description: 'আধার বিবরণ আপডেট করুন, ই-আধার ডাউনলোড করুন বা স্থিতি দেখুন',
+                button: 'এখনই আবেদন করুন',
+                info: 'আরও তথ্য'
+            },
+            pan: {
+                title: 'প্যান কার্ড সেবা',
+                description: 'নতুন প্যান কার্ড, সংশোধন বা ডুপ্লিকেটের জন্য আবেদন করুন',
+                button: 'এখনই আবেদন করুন',
+                info: 'আরও তথ্য'
+            },
+            'driving-license': {
+                title: 'ড্রাইভিং লাইসেন্স',
+                description: 'ড্রাইভিং লাইসেন্স, নবায়ন বা ডুপ্লিকেটের জন্য আবেদন করুন',
+                button: 'এখনই আবেদন করুন',
+                info: 'আরও তথ্য'
+            },
+            itr: {
+                title: 'আয়কর রিটার্ন',
+                description: 'আয়কর রিটার্ন দাখিল করুন, কর গণনা করুন এবং রিফান্ড চেক করুন',
+                button: 'এখনই আবেদন করুন',
+                info: 'আরও তথ্য'
+            },
+            scanner: {
+                title: 'ডকুমেন্ট স্ক্যানার',
+                description: 'নথি স্ক্যান করুন এবং ফর্ম পূরণের জন্য তথ্য নিষ্কাশন করুন',
+                button: 'এখনই স্ক্যান করুন',
+                info: 'আরও তথ্য'
+            }
+        },
+        'ta-IN': {
+            passport: {
+                title: 'பாஸ்போர்ட் சேவைகள்',
+                description: 'புதிய பாஸ்போர்ட், புதுப்பித்தல் அல்லது முகவரி மாற்றத்திற்கு விண்ணப்பிக்கவும்',
+                button: 'இப்போது விண்ணப்பிக்கவும்',
+                info: 'மேலும் தகவல்'
+            },
+            aadhaar: {
+                title: 'ஆதார் சேவைகள்',
+                description: 'ஆதார் விவரங்களை புதுப்பிக்கவும், ஈ-ஆதாரை பதிவிறக்கவும் அல்லது நிலையை பார்க்கவும்',
+                button: 'இப்போது விண்ணப்பிக்கவும்',
+                info: 'மேலும் தகவல்'
+            },
+            pan: {
+                title: 'பான் கார்டு சேவைகள்',
+                description: 'புதிய பான் கார்டு, திருத்தம் அல்லது நகலுக்கு விண்ணப்பிக்கவும்',
+                button: 'இப்போது விண்ணப்பிக்கவும்',
+                info: 'மேலும் தகவல்'
+            },
+            'driving-license': {
+                title: 'ஓட்டுநர் உரிமம்',
+                description: 'ஓட்டுநர் உரிமம், புதுப்பித்தல் அல்லது நகலுக்கு விண்ணப்பிக்கவும்',
+                button: 'இப்போது விண்ணப்பிக்கவும்',
+                info: 'மேலும் தகவல்'
+            },
+            itr: {
+                title: 'வருமான வரி ரிட்டர்ன்',
+                description: 'வருமான வரி ரிட்டர்ன் தாக்கல் செய்யவும், வரி கணக்கிடவும் மற்றும் திரும்ப பணம் சரிபார்க்கவும்',
+                button: 'இப்போது விண்ணப்பிக்கவும்',
+                info: 'மேலும் தகவல்'
+            },
+            scanner: {
+                title: 'ஆவண ஸ்கேனர்',
+                description: 'ஆவணங்களை ஸ்கேன் செய்து படிவம் நிரப்புவதற்கான தகவலை பிரித்தெடுக்கவும்',
+                button: 'இப்போது ஸ்கேன் செய்யவும்',
+                info: 'மேலும் தகவல்'
+            }
+        }
+    };
+    
+    const content = serviceContent[selectedLanguage] || serviceContent['hi-IN'];
+    
+    // Update service cards
+    Object.keys(content).forEach(serviceKey => {
+        const serviceCard = document.querySelector(`[onclick="startService('${serviceKey}')"]`);
+        if (serviceCard) {
+            const cardContainer = serviceCard.closest('.service-card');
+            if (cardContainer) {
+                const titleElement = cardContainer.querySelector('h4');
+                const descElement = cardContainer.querySelector('p');
+                const buttonElement = cardContainer.querySelector('button[onclick^="startService"]');
+                const infoButton = cardContainer.querySelector('button[onclick^="showServiceInfo"]');
+                
+                if (titleElement) {
+                    // Keep the speaker icon and update text
+                    const speakerIcon = titleElement.querySelector('.fa-volume-up');
+                    if (speakerIcon) {
+                        titleElement.innerHTML = '';
+                        titleElement.appendChild(speakerIcon);
+                        titleElement.innerHTML += content[serviceKey].title;
+                    } else {
+                        titleElement.textContent = content[serviceKey].title;
+                    }
+                }
+                if (descElement) descElement.textContent = content[serviceKey].description;
+                if (buttonElement) buttonElement.innerHTML = `<i class="fas fa-arrow-right me-2"></i>${content[serviceKey].button}`;
+                if (infoButton) infoButton.innerHTML = `<i class="fas fa-info-circle me-2"></i>${content[serviceKey].info}`;
+            }
+        }
+    });
+}
+
+function updateFormElements() {
+    const t = currentTranslations;
+    
+    // Update form labels and placeholders
+    const formMappings = {
+        'loginEmail': { label: t.email, placeholder: t.email },
+        'loginPassword': { label: t.password, placeholder: t.password },
+        'registerName': { label: t.fullName, placeholder: t.fullName },
+        'registerEmail': { label: t.email, placeholder: t.email },
+        'registerPhone': { label: t.phoneNumber, placeholder: t.phoneNumber },
+        'registerPassword': { label: t.password, placeholder: t.password }
+    };
+    
+    Object.keys(formMappings).forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        const label = document.querySelector(`label[for="${fieldId}"]`);
+        
+        if (field && formMappings[fieldId].placeholder) {
+            field.placeholder = formMappings[fieldId].placeholder;
+        }
+        if (label && formMappings[fieldId].label) {
+            label.textContent = formMappings[fieldId].label;
+        }
+    });
+}
+
+function updateButtonTexts() {
+    const t = currentTranslations;
+    
+    // Update navigation buttons
+    const nextBtn = document.getElementById('nextQuestion');
+    if (nextBtn) {
+        nextBtn.innerHTML = `${t.next} <i class="fas fa-arrow-right ms-2"></i>`;
+    }
+    
+    const prevBtn = document.getElementById('prevQuestion');
+    if (prevBtn) {
+        prevBtn.innerHTML = `<i class="fas fa-arrow-left me-2"></i>${t.previous}`;
+    }
+    
+    const submitBtn = document.getElementById('submitApplication');
+    if (submitBtn) {
+        submitBtn.innerHTML = `<i class="fas fa-paper-plane me-2"></i>${t.submit}`;
+    }
+    
+    const skipBtn = document.getElementById('skipQuestion');
+    if (skipBtn) {
+        skipBtn.textContent = t.skip;
+    }
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     checkBackendStatus();
     setupEventListeners();
+    startLiveStatusMonitoring();
+    // Don't show language selector by default - show it when "Get Started" is clicked
 });
 
 // Check backend status
 async function checkBackendStatus() {
     const statusIndicator = document.getElementById('backendStatus');
+    const statusText = document.getElementById('statusText');
+    
+    // Add checking state
+    if (statusIndicator) {
+        statusIndicator.className = 'status-indicator status-checking';
+    }
+    if (statusText) {
+        statusText.textContent = 'Checking...';
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/health`);
+        const response = await fetch(`${API_BASE_URL}/health`, {
+            method: 'GET',
+            cache: 'no-cache',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
         if (response.ok) {
+            const healthData = await response.json();
             statusIndicator.className = 'status-indicator status-online';
-            console.log('Backend is online');
+            if (statusText) {
+                statusText.textContent = 'Backend Online';
+            }
+            console.log('Backend is online:', healthData);
         } else {
             statusIndicator.className = 'status-indicator status-offline';
-            console.log('Backend is offline');
+            if (statusText) {
+                statusText.textContent = 'Backend Offline';
+            }
+            console.log('Backend returned non-OK status:', response.status);
         }
     } catch (error) {
         statusIndicator.className = 'status-indicator status-offline';
-        console.log('Backend is offline:', error);
+        if (statusText) {
+            statusText.textContent = 'Backend Offline';
+        }
+        console.log('Backend is offline:', error.message);
+    }
+}
+
+// Live status monitoring
+let statusCheckInterval = null;
+
+function startLiveStatusMonitoring() {
+    // Check status every 10 seconds
+    statusCheckInterval = setInterval(() => {
+        checkBackendStatus();
+    }, 10000);
+    
+    console.log('Live status monitoring started - checking every 10 seconds');
+    
+    // Also add visibility change handler to check when tab becomes active
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            console.log('Tab became visible, checking backend status');
+            checkBackendStatus();
+        }
+    });
+}
+
+function stopLiveStatusMonitoring() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+        console.log('Live status monitoring stopped');
     }
 }
 
@@ -38,12 +678,29 @@ function setupEventListeners() {
     
     // Application form
     document.getElementById('applicationFormElement').addEventListener('submit', handleApplication);
+    
+    // Status click handler for manual refresh
+    const statusText = document.getElementById('statusText');
+    if (statusText) {
+        statusText.addEventListener('click', function() {
+            console.log('Manual status check requested');
+            checkBackendStatus();
+        });
+        statusText.setAttribute('title', 'Click to refresh status');
+    }
 }
 
 // Show services section
 function showServices() {
+    console.log('Showing services section');
     hideAllSections();
-    document.getElementById('servicesSection').style.display = 'block';
+    const servicesSection = document.getElementById('servicesSection');
+    if (servicesSection) {
+        servicesSection.style.display = 'block';
+        console.log('Services section displayed');
+    } else {
+        console.error('Services section not found');
+    }
 }
 
 // Show login form
@@ -62,9 +719,13 @@ function showRegisterForm() {
 
 // Hide all sections
 function hideAllSections() {
-    document.getElementById('servicesSection').style.display = 'none';
-    document.getElementById('authForms').style.display = 'none';
-    document.getElementById('applicationForm').style.display = 'none';
+    const sections = ['servicesSection', 'authForms', 'applicationForm', 'languageSelector'];
+    sections.forEach(sectionId => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
 }
 
 // Handle login
@@ -210,15 +871,16 @@ function showCurrentQuestion() {
     const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100;
     document.getElementById('progressBar').style.width = `${progress}%`;
     
-    // Update counter
-    document.getElementById('questionCounter').textContent = 
-        `प्रश्न ${currentQuestionIndex + 1} / Question ${currentQuestionIndex + 1} of ${totalQuestions}`;
+    // Update counter based on selected language
+    const counterText = getLocalizedCounterText(currentQuestionIndex + 1, totalQuestions);
+    document.getElementById('questionCounter').textContent = counterText;
     
-    // Update question content
+    // Update question content based on selected language
     document.getElementById('questionIcon').className = `${question.icon} fa-4x text-primary`;
-    document.getElementById('questionText').innerHTML = 
-        `${question.question}<br><small class="text-muted">${question.questionEn}</small>`;
-    document.getElementById('questionHint').textContent = question.hint;
+    
+    const questionDisplay = getLocalizedQuestionDisplay(question);
+    document.getElementById('questionText').innerHTML = questionDisplay.text;
+    document.getElementById('questionHint').textContent = questionDisplay.hint;
     
     // Show appropriate input type
     hideAllInputs();
@@ -238,6 +900,7 @@ function showCurrentQuestion() {
     
     // Populate existing answer if available
     const existingAnswer = userAnswers[question.id];
+    console.log('Existing answer for', question.id, ':', existingAnswer); // Debug log
     if (existingAnswer) {
         if (question.type === 'text') {
             const textInput = document.getElementById('currentAnswer');
@@ -245,15 +908,70 @@ function showCurrentQuestion() {
         } else if (question.type === 'date') {
             const dateInput = document.getElementById('dateAnswer');
             if (dateInput) dateInput.value = existingAnswer;
+        } else if (question.type === 'choice') {
+            // Choice selection is handled in showChoiceInput
+            console.log('Choice answer will be restored in showChoiceInput');
         }
-        // Choice and document answers are handled differently
+        // Document answers are handled in showDocumentInput
     }
     
     // Show skip option for optional questions
     const skipBtn = document.getElementById('skipQuestion');
     skipBtn.style.display = question.required ? 'none' : 'block';
+    if (skipBtn.style.display !== 'none') {
+        skipBtn.textContent = getLocalizedText('skip');
+    }
     
     console.log('Question displayed successfully'); // Debug log
+}
+
+function getLocalizedCounterText(current, total) {
+    switch(selectedLanguage) {
+        case 'en-IN':
+            return `Question ${current} of ${total}`;
+        case 'hi-IN':
+            return `प्रश्न ${current} / Question ${current} of ${total}`;
+        case 'bn-IN':
+            return `প্রশ্ন ${current} / Question ${current} of ${total}`;
+        case 'ta-IN':
+            return `கேள்வி ${current} / Question ${current} of ${total}`;
+        default:
+            return `प्रश्न ${current} / Question ${current} of ${total}`;
+    }
+}
+
+function getLocalizedQuestionDisplay(question) {
+    // For now, we'll show both languages. In the future, we can create 
+    // language-specific question sets
+    switch(selectedLanguage) {
+        case 'en-IN':
+            return {
+                text: `${question.questionEn || question.question}<br><small class="text-muted">${question.question}</small>`,
+                hint: question.hintEn || question.hint
+            };
+        case 'hi-IN':
+            return {
+                text: `${question.question}<br><small class="text-muted">${question.questionEn || question.question}</small>`,
+                hint: question.hint
+            };
+        case 'bn-IN':
+        case 'ta-IN':
+            // For regional languages, show English primary and Hindi secondary for now
+            return {
+                text: `${question.questionEn || question.question}<br><small class="text-muted">${question.question}</small>`,
+                hint: question.hintEn || question.hint
+            };
+        default:
+            return {
+                text: `${question.question}<br><small class="text-muted">${question.questionEn || question.question}</small>`,
+                hint: question.hint
+            };
+    }
+}
+
+function getLocalizedText(key) {
+    const t = currentTranslations;
+    return t[key] || key;
 }
 
 // Update navigation buttons visibility
@@ -293,6 +1011,16 @@ function showTextInput(question) {
     const input = document.getElementById('currentAnswer');
     input.value = userAnswers[question.id] || '';
     input.placeholder = question.hint;
+    
+    // Add Enter key support
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            console.log('Enter key pressed in text input');
+            e.preventDefault();
+            nextQuestion();
+        }
+    });
+    
     input.focus();
 }
 
@@ -309,10 +1037,21 @@ function showChoiceInput(question) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'btn btn-outline-primary choice-btn w-100';
-        button.textContent = choice.text;
-        button.onclick = () => selectChoice(choice.value, question.id);
         
-        if (userAnswers[question.id] === choice.value) {
+        // Handle both object format {text: '', value: ''} and string format
+        let choiceText, choiceValue;
+        if (typeof choice === 'string') {
+            choiceText = choice;
+            choiceValue = choice;
+        } else {
+            choiceText = choice.text;
+            choiceValue = choice.value;
+        }
+        
+        button.textContent = choiceText;
+        button.onclick = () => selectChoice(choiceValue, question.id);
+        
+        if (userAnswers[question.id] === choiceValue) {
             button.classList.add('selected');
         }
         
@@ -353,6 +1092,7 @@ function showDocumentInput(question) {
 
 // Select choice
 function selectChoice(value, questionId) {
+    console.log('Choice selected:', value, 'for question:', questionId); // Debug log
     userAnswers[questionId] = value;
     
     // Update button styles
@@ -360,6 +1100,8 @@ function selectChoice(value, questionId) {
         btn.classList.remove('selected');
     });
     event.target.classList.add('selected');
+    
+    console.log('User answers now:', userAnswers); // Debug log
     
     // Voice feedback
     if (isVoiceAssistantActive) {
@@ -369,17 +1111,26 @@ function selectChoice(value, questionId) {
 
 // Next question
 function nextQuestion() {
-    console.log('Next question clicked'); // Debug log
+    console.log('=== NEXT QUESTION FUNCTION CALLED ==='); // Basic test
+    console.log('Next question clicked for service:', currentServiceType); // Debug log
+    
+    // Very basic check first
+    if (!currentServiceType) {
+        console.error('ERROR: currentServiceType is not set!');
+        alert('Error: No service selected');
+        return;
+    }
     
     const questions = questionSets[currentServiceType] || questionSets.passport;
     const currentQuestion = questions[currentQuestionIndex];
     
-    console.log('Current question:', currentQuestion); // Debug log
-    console.log('Current service type:', currentServiceType); // Debug log
+    console.log('Questions available:', questions.length); // Debug log
     console.log('Current question index:', currentQuestionIndex); // Debug log
+    console.log('Current question:', currentQuestion); // Debug log
     
     if (!currentQuestion) {
-        console.error('No current question found');
+        console.error('No current question found at index:', currentQuestionIndex);
+        console.error('Available questions:', questions.length);
         showAlert('Error: No question found', 'error');
         return;
     }
@@ -687,14 +1438,7 @@ function fillDeveloperCredentials() {
 }
 
 // Question-Answer Model for Simple UI
-let currentQuestionIndex = 0;
-let totalQuestions = 0;
-let userAnswers = {};
-let currentServiceType = '';
-let isVoiceAssistantActive = false;
-let recognition = null;
-let synthesis = window.speechSynthesis;
-let questionSets = {};
+// Variables already declared at the top of the file
 
 // Initialize speech recognition if supported
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -702,7 +1446,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = 'hi-IN'; // Hindi (India)
+    recognition.lang = selectedLanguage || 'hi-IN'; // Use selected language or default to Hindi
 }
 
 // Question sets based on filing requirements
@@ -1254,15 +1998,77 @@ questionSets = {
     ]
 };
 
-// Text-to-Speech function
-function speakText(text, lang = 'hi-IN') {
-    if (synthesis) {
-        synthesis.cancel(); // Stop any ongoing speech
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.rate = 0.8;
-        utterance.pitch = 1;
+// Text-to-Speech function with enhanced language support
+function speakText(text, lang = null) {
+    if (!synthesis) {
+        console.log('Speech synthesis not supported');
+        return;
+    }
+    
+    synthesis.cancel(); // Stop any ongoing speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang || selectedLanguage; // Use selected language
+    utterance.rate = 0.8;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    // Enhanced language-specific voice selection
+    const availableVoices = synthesis.getVoices();
+    
+    // Define language priorities for voice selection
+    const languagePriorities = {
+        'hi-IN': ['hi-IN', 'hi', 'en-IN', 'en-US'],
+        'en-IN': ['en-IN', 'en-GB', 'en-US', 'en'],
+        'ta-IN': ['ta-IN', 'ta', 'hi-IN', 'en-IN'],
+        'te-IN': ['te-IN', 'te', 'hi-IN', 'en-IN'],
+        'bn-IN': ['bn-IN', 'bn', 'hi-IN', 'en-IN'],
+        'mr-IN': ['mr-IN', 'mr', 'hi-IN', 'en-IN'],
+        'gu-IN': ['gu-IN', 'gu', 'hi-IN', 'en-IN'],
+        'kn-IN': ['kn-IN', 'kn', 'hi-IN', 'en-IN'],
+        'ml-IN': ['ml-IN', 'ml', 'hi-IN', 'en-IN'],
+        'pa-IN': ['pa-IN', 'pa', 'hi-IN', 'en-IN'],
+        'or-IN': ['or-IN', 'or', 'hi-IN', 'en-IN']
+    };
+    
+    const priorities = languagePriorities[utterance.lang] || ['en-IN', 'en-US', 'hi-IN'];
+    
+    // Find the best available voice
+    let selectedVoice = null;
+    for (const priority of priorities) {
+        selectedVoice = availableVoices.find(voice => 
+            voice.lang === priority || 
+            (voice.lang.startsWith(priority.split('-')[0]) && voice.lang.includes('IN'))
+        );
+        if (selectedVoice) break;
+    }
+    
+    // Fallback to any English voice if no regional voice found
+    if (!selectedVoice) {
+        selectedVoice = availableVoices.find(voice => 
+            voice.lang.startsWith('en')
+        );
+    }
+    
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log('Using voice:', selectedVoice.name, selectedVoice.lang);
+    } else {
+        console.log('No suitable voice found, using default');
+    }
+    
+    // Add error handling
+    utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event.error);
+    };
+    
+    utterance.onend = () => {
+        console.log('Speech synthesis completed');
+    };
+    
+    try {
         synthesis.speak(utterance);
+    } catch (error) {
+        console.error('Failed to speak text:', error);
     }
 }
 
@@ -1496,6 +2302,30 @@ function showServiceInfo(serviceType) {
 
 
 
+// Add form submission prevention and button event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent form submission from interfering with navigation
+    const appForm = document.getElementById('applicationFormElement');
+    if (appForm) {
+        appForm.addEventListener('submit', function(e) {
+            console.log('Form submission prevented');
+            e.preventDefault();
+            nextQuestion();
+        });
+    }
+    
+    // Add direct click event listener to next button as backup
+    const nextBtn = document.getElementById('nextQuestion');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', function(e) {
+            console.log('Next button clicked via event listener');
+            e.preventDefault();
+            e.stopPropagation();
+            nextQuestion();
+        });
+    }
+});
+
 // Export functions for global access
 window.showServices = showServices;
 window.showLoginForm = showLoginForm;
@@ -1514,4 +2344,6 @@ window.showServiceInfo = showServiceInfo;
 window.triggerDocumentUpload = triggerDocumentUpload;
 window.handleDocumentAnswer = handleDocumentAnswer;
 window.selectChoice = selectChoice;
+window.selectLanguage = selectLanguage;
+window.showLanguageSelector = showLanguageSelector;
 

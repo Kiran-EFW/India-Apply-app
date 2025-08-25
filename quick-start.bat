@@ -28,9 +28,13 @@ echo [3] Simple Start (Fastest)
 echo     • Quick reliable startup
 echo     • Automatic error prevention
 echo.
+echo [4] PowerShell Compatible
+echo     • Fixes && operator issues
+echo     • PowerShell-specific syntax
+echo.
 echo [0] Exit
 echo.
-set /p choice="Enter your choice (1-3): "
+set /p choice="Enter your choice (1-4): "
 
 if "%choice%"=="1" (
     echo Starting in Development Mode...
@@ -41,6 +45,9 @@ if "%choice%"=="1" (
 ) else if "%choice%"=="3" (
     echo Starting with simple reliable setup...
     call start-simple.bat
+) else if "%choice%"=="4" (
+    echo Starting PowerShell compatible version...
+    powershell -ExecutionPolicy Bypass -File start-powershell.ps1
 ) else if "%choice%"=="0" (
     echo Goodbye!
     exit /b 0

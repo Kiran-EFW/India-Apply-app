@@ -123,12 +123,17 @@ start "Apply AI India - Development Server" cmd /k "npm run start:dev"
 echo.
 echo ✓ Development server starting...
 echo.
-echo Waiting for server to be ready...
+echo Waiting for server to be ready (this can take 10-15 seconds)...
+echo Please be patient while the server initializes...
+
+REM Wait longer based on our learning
+timeout /t 10 /nobreak >nul
+
 :dev_wait_loop
-timeout /t 3 /nobreak >nul
+timeout /t 2 /nobreak >nul
 powershell -Command "try { (Invoke-WebRequest -Uri 'http://localhost:3000/api/health' -UseBasicParsing -TimeoutSec 5).StatusCode } catch { exit 1 }" >nul 2>&1
 if !errorlevel! equ 0 goto dev_ready
-echo Still starting up...
+echo Server still initializing... (this is normal for NestJS)
 goto dev_wait_loop
 
 :dev_ready

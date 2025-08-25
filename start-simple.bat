@@ -71,12 +71,23 @@ echo Build completed
 echo.
 echo Starting backend server...
 cd backend
-start "Apply AI Backend" cmd /k "npm run start:dev"
+start "Apply AI Backend - Development Server" cmd /k "npm run start:dev"
 cd ..
 
 echo.
-echo Waiting for server to start...
-timeout /t 8 /nobreak >nul
+echo Waiting for server to initialize (this takes 10-15 seconds)...
+echo Please wait while the backend starts up...
+timeout /t 15 /nobreak >nul
+
+echo.
+echo Checking server status...
+powershell -Command "try { (Invoke-WebRequest -Uri 'http://localhost:3000/api/health' -UseBasicParsing -TimeoutSec 5).StatusCode } catch { exit 1 }" >nul 2>&1
+if errorlevel 1 (
+    echo WARNING: Server may still be starting. Please wait a moment and check manually.
+    echo If issues persist, the server window should show error details.
+) else (
+    echo SUCCESS: Server is responding correctly!
+)
 
 echo.
 echo Opening web application...

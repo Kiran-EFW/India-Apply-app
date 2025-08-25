@@ -57,9 +57,37 @@
             border-radius: 50%;
             display: inline-block;
             margin-right: 8px;
+            transition: all 0.3s ease;
         }
-        .status-online { background-color: #28a745; }
-        .status-offline { background-color: #dc3545; }
+        .status-online { 
+            background-color: #28a745; 
+            box-shadow: 0 0 6px rgba(40, 167, 69, 0.6);
+        }
+        .status-offline { 
+            background-color: #dc3545; 
+            box-shadow: 0 0 6px rgba(220, 53, 69, 0.6);
+        }
+        .status-checking { 
+            background-color: #ffc107; 
+            box-shadow: 0 0 6px rgba(255, 193, 7, 0.6);
+            animation: pulse-checking 1.5s infinite;
+        }
+        
+        @keyframes pulse-checking {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .status-text {
+            font-size: 0.9em;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        .status-text:hover {
+            text-decoration: underline;
+        }
         
         /* Enhanced Accessibility Styles */
         .form-step {
@@ -248,19 +276,78 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="#">
+            <a class="navbar-brand" href="#" id="appTitle">
                 <i class="fas fa-government"></i> Apply AI India
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
                     <span class="status-indicator" id="backendStatus"></span>
-                    Backend Status
+                    <span class="status-text" id="statusText">Backend Status</span>
                 </span>
-                <button class="btn btn-outline-light me-2" onclick="showLoginForm()">Login</button>
-                <button class="btn btn-primary" onclick="showRegisterForm()">Register</button>
+                <button class="btn btn-outline-light me-2" onclick="showLoginForm()" id="loginBtn">Login</button>
+                <button class="btn btn-primary" onclick="showRegisterForm()" id="registerBtn">Register</button>
             </div>
         </div>
     </nav>
+
+    <!-- Language Selection Screen -->
+    <div id="languageSelector" class="container mt-5" style="display: none;">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="auth-form text-center">
+                    <i class="fas fa-language fa-4x text-primary mb-4"></i>
+                    <h2 class="mb-3">भाषा चुनें / Select Language</h2>
+                    <p class="text-muted mb-4">अपनी पसंदीदा भाषा चुनें / Choose your preferred language</p>
+
+                    <!-- Primary Languages -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-primary btn-lg w-100 p-3" onclick="selectLanguage('hi-IN')">
+                                <div class="d-flex align-items-center justify-content-center">
+                                    <span class="fs-3 me-3">🇮🇳</span>
+                                    <div>
+                                        <div class="fs-4 fw-bold">हिंदी</div>
+                                        <small>Hindi (National)</small>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-primary btn-lg w-100 p-3" onclick="selectLanguage('en-IN')">
+                                <div class="d-flex align-items-center justify-content-center">
+                                    <span class="fs-3 me-3">🏴󠁧󠁢󠁥󠁮󠁧󠁿</span>
+                                    <div>
+                                        <div class="fs-4 fw-bold">English</div>
+                                        <small>English (National)</small>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Regional Languages -->
+                    <h5 class="mb-3">क्षेत्रीय भाषाएं / Regional Languages</h5>
+                    <div class="row g-2">
+                        <div class="col-md-6 col-sm-6">
+                            <button type="button" class="btn btn-outline-primary w-100 py-3" onclick="selectLanguage('bn-IN')">
+                                <div class="fw-bold">বাংলা</div>
+                                <small>Bengali</small>
+                            </button>
+                        </div>
+                        <div class="col-md-6 col-sm-6">
+                            <button type="button" class="btn btn-outline-primary w-100 py-3" onclick="selectLanguage('ta-IN')">
+                                <div class="fw-bold">தமிழ்</div>
+                                <small>Tamil</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">अधिक भाषाएं जल्द ही उपलब्ध होंगी / More languages coming soon</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <div class="container">
@@ -268,7 +355,7 @@
         <div class="hero-section text-center">
             <h1 class="display-4 mb-4">Government Services Made Simple</h1>
             <p class="lead mb-4">Apply for government services with AI assistance. Fast, secure, and user-friendly.</p>
-            <button class="btn btn-primary btn-lg" onclick="showServices()">
+            <button class="btn btn-primary btn-lg" onclick="showLanguageSelector()">
                 <i class="fas fa-rocket"></i> Get Started
             </button>
         </div>
@@ -479,7 +566,7 @@
             </div>
 
             <!-- Answer Input Area -->
-            <form id="applicationFormElement">
+            <form id="applicationFormElement" onsubmit="event.preventDefault(); nextQuestion(); return false;">
                 <div id="answerContainer" class="mb-4">
                     <!-- Text Input -->
                     <div id="textInput" class="answer-input">
@@ -523,7 +610,7 @@
                     <button type="button" class="btn btn-outline-secondary btn-lg me-3" id="prevQuestion" onclick="previousQuestion()" style="display: none;">
                         <i class="fas fa-arrow-left me-2"></i>पिछला / Previous
                     </button>
-                    <button type="button" class="btn btn-primary btn-lg me-3" id="nextQuestion" onclick="nextQuestion()">
+                    <button type="button" class="btn btn-primary btn-lg me-3" id="nextQuestion" onclick="event.preventDefault(); nextQuestion();">
                         अगला / Next <i class="fas fa-arrow-right ms-2"></i>
                     </button>
                     <button type="submit" class="btn btn-success btn-lg" id="submitApplication" style="display: none;">
