@@ -7,6 +7,7 @@ import { ElevenLabsModule } from './elevenlabs/elevenlabs.module';
 import { OcrModule } from './ocr/ocr.module';
 import { RazorpayModule } from './razorpay/razorpay.module';
 import { UTRModule } from './utr/utr.module';
+import { ApplicationModule } from './application/application.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UTRModule } from './utr/utr.module';
     OcrModule,
     RazorpayModule,
     UTRModule,
+    ApplicationModule,
   ],
 })
 export class AppModule {}
