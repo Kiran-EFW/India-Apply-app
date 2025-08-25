@@ -1,7 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Application } from './application.entity';
+import { Application, ApplicationStatus, ServiceType } from './application.entity';
+
+export interface CreateApplicationDto {
+  userId: string;
+  serviceType: ServiceType;
+  formData: any;
+}
+
+export interface UpdateApplicationDto {
+  status?: ApplicationStatus;
+  trackingNumber?: string;
+  remarks?: string;
+  paymentId?: string;
+  utrNumber?: string;
+}
 
 @Injectable()
 export class ApplicationService {
@@ -10,66 +24,40 @@ export class ApplicationService {
     private applicationRepository: Repository<Application>,
   ) {}
 
-  async createApplication(userId: string, serviceType: string, data: any) {
-    try {
-      const application = this.applicationRepository.create({
-        userId,
-        serviceType,
-        status: 'submitted',
-        data,
-        submittedAt: new Date(),
-      });
-
-      return await this.applicationRepository.save(application);
-    } catch (error) {
-      console.error('Application creation error:', error);
-      throw new Error('Failed to create application');
-    }
+  async createApplication(createApplicationDto: CreateApplicationDto): Promise<Application> {
+    const application = this.applicationRepository.create({
+      ...createApplicationDto,
+      status: ApplicationStatus.DRAFT,
+    });
+    return this.applicationRepository.save(application);
   }
 
-  async getApplicationById(id: string) {
-    try {
-      return await this.applicationRepository.findOne({ where: { id } });
-    } catch (error) {
-      console.error('Application fetch error:', error);
-      throw new Error('Failed to fetch application');
-    }
+  async findAllByUserId(userId: string): Promise<Application[]> {
+    return this.applicationRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async getApplicationsByUser(userId: string) {
-    try {
-      return await this.applicationRepository.find({ where: { userId } });
-    } catch (error) {
-      console.error('Applications fetch error:', error);
-      throw new Error('Failed to fetch applications');
-    }
+  async findById(id: string): Promise<Application> {
+    return this.applicationRepository.findOne({ where: { id } });
   }
 
-  async updateApplicationStatus(id: string, status: string) {
-    try {
-      await this.applicationRepository.update(id, { status });
-      return await this.getApplicationById(id);
-    } catch (error) {
-      console.error('Application status update error:', error);
-      throw new Error('Failed to update application status');
-    }
+  async updateApplication(id: string, updateApplicationDto: UpdateApplicationDto): Promise<Application> {
+    await this.applicationRepository.update(id, updateApplicationDto);
+    return this.findById(id);
   }
 
-  async getApplicationStatus(id: string) {
-    try {
-      const application = await this.getApplicationById(id);
-      if (!application) {
-        throw new Error('Application not found');
-      }
+  async submitApplication(id: string): Promise<Application> {
+    return this.updateApplication(id, { status: ApplicationStatus.SUBMITTED });
+  }
 
-      return {
-        status: application.status,
-        data: application.data,
-        updatedAt: application.updatedAt,
-      };
-    } catch (error) {
-      console.error('Status check error:', error);
-      throw new Error('Failed to get application status');
-    }
+  async generateTrackingNumber(id: string): Promise<Application> {
+    const trackingNumber = `APP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return this.updateApplication(id, { trackingNumber });
+  }
+
+  async deleteApplication(id: string): Promise<void> {
+    await this.applicationRepository.delete(id);
   }
 }

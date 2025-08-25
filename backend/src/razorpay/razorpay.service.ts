@@ -1,50 +1,103 @@
 import { Injectable } from '@nestjs/common';
-import Razorpay from 'razorpay';
+const Razorpay = require('razorpay');
+
+export interface CreateOrderDto {
+  amount: number;
+  currency: string;
+  receipt: string;
+  notes?: any;
+}
+
+export interface PaymentVerificationDto {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
 
 @Injectable()
 export class RazorpayService {
-  private razorpay: Razorpay;
+  private razorpay: any;
 
   constructor() {
+    // Initialize Razorpay with API keys
+    // In production, these would come from environment variables
     this.razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+      key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_key',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || 'test_secret',
     });
   }
 
-  async createOrder(amount: number, currency: string = 'INR', receipt: string) {
+  async createOrder(createOrderDto: CreateOrderDto) {
     try {
-      const options = {
-        amount: amount * 100, // Razorpay expects amount in paise
-        currency,
-        receipt,
-        payment_capture: 1, // Auto capture payment
-      };
+      const order = await this.razorpay.orders.create({
+        amount: createOrderDto.amount * 100, // Convert to paise
+        currency: createOrderDto.currency,
+        receipt: createOrderDto.receipt,
+        notes: createOrderDto.notes,
+      });
 
-      const order = await this.razorpay.orders.create(options);
-      return order;
+      return {
+        success: true,
+        order,
+        message: 'Order created successfully',
+      };
     } catch (error) {
-      console.error('Razorpay order creation error:', error);
-      throw new Error('Failed to create Razorpay order');
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to create order',
+      };
     }
   }
 
-  async verifyPayment(paymentId: string, orderId: string, signature: string) {
+  async verifyPayment(paymentVerificationDto: PaymentVerificationDto) {
     try {
-      const generatedSignature = this.crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-        .update(`${orderId}|${paymentId}`)
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = paymentVerificationDto;
+      
+      // Verify the payment signature
+      const text = `${razorpay_order_id}|${razorpay_payment_id}`;
+      const crypto = require('crypto');
+      const signature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'test_secret')
+        .update(text)
         .digest('hex');
 
-      return generatedSignature === signature;
+      if (signature === razorpay_signature) {
+        return {
+          success: true,
+          paymentId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          message: 'Payment verified successfully',
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Payment verification failed',
+        };
+      }
     } catch (error) {
-      console.error('Payment verification error:', error);
-      throw new Error('Payment verification failed');
+      return {
+        success: false,
+        error: error.message,
+        message: 'Payment verification failed',
+      };
     }
   }
 
-  private get crypto() {
-    const crypto = require('crypto');
-    return crypto;
+  async getPaymentDetails(paymentId: string) {
+    try {
+      const payment = await this.razorpay.payments.fetch(paymentId);
+      return {
+        success: true,
+        payment,
+        message: 'Payment details retrieved successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to retrieve payment details',
+      };
+    }
   }
 }

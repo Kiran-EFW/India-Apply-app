@@ -1,10 +1,28 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
-import { Application } from '../application/application.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity()
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+  GOVERNMENT_OFFICIAL = 'government_official'
+}
+
+export enum UserStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  SUSPENDED = 'suspended',
+  PENDING_VERIFICATION = 'pending_verification'
+}
+
+@Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ length: 100 })
+  name: string;
+
+  @Column({ unique: true })
+  email: string;
 
   @Column({ unique: true })
   phone: string;
@@ -12,21 +30,59 @@ export class User {
   @Column()
   password: string;
 
-  @Column()
-  name: string;
+  @Column({
+    type: 'varchar',
+    length: 50,
+    default: UserRole.USER
+  })
+  role: UserRole;
+
+  @Column({
+    type: 'varchar',
+    length: 50,
+    default: UserStatus.PENDING_VERIFICATION
+  })
+  status: UserStatus;
 
   @Column({ nullable: true })
-  email: string;
+  aadhaarNumber: string;
 
   @Column({ nullable: true })
-  aadhaar: string;
+  panNumber: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  profile: any;
+  @Column({ type: 'text', nullable: true })
+  address: string;
+
+  @Column({ nullable: true })
+  dateOfBirth: Date;
+
+  @Column({ nullable: true })
+  profilePicture: string;
+
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Column({ default: false })
+  isPhoneVerified: boolean;
+
+  @Column({ nullable: true })
+  lastLoginAt: Date;
+
+  @Column({ nullable: true })
+  emailVerificationToken: string;
+
+  @Column({ nullable: true })
+  phoneVerificationToken: string;
+
+  @Column({ nullable: true })
+  passwordResetToken: string;
+
+  @Column({ nullable: true })
+  passwordResetExpires: Date;
 
   @CreateDateColumn()
   createdAt: Date;
 
-  @OneToMany(() => Application, application => application.user)
-  applications: Application[];
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
